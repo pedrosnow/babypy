@@ -12,13 +12,15 @@ import json
 def index():
     return 'Página inicial'
 
-@app.route('/record_and_stream')
+@app.route('/record_and_stream', methods=['POST'])
 def stream():
     
+    data = request.json
+
     device_video = 'USB Video'
     device_audio = 'Microfone (Realtek High Definition Audio)'  # Nome do dispositivo de áudio
-    output_file = 'output.mkv'  # Nome do arquivo de saída
-    rtmp_url = 'rtmp://172.16.2.2:1935/live/tutorial'  # URL RTMP
+    output_file = f'{data["chave"]}.mkv'  # Nome do arquivo de saída
+    rtmp_url = f'rtmp://172.16.2.2:1935/live/{data["chave"]}'  # URL RTMP
 
     # Comando FFmpeg
     command = [
@@ -53,49 +55,48 @@ def stream():
     ]
 
     # Executar o comando e capturar a saída de depuração
-    try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        for line in process.stdout:
-            print(line.strip())
-            if "Error opening output file" in line:
-                raise subprocess.CalledProcessError(1, command)
-        process.wait()
+    # try:
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    for line in process.stdout:
+        print(line.strip())
+        if "Error opening output file" in line:
+            raise subprocess.CalledProcessError(1, command)
+    process.wait()
         
-    except subprocess.CalledProcessError as e:
+    # except subprocess.CalledProcessError as e:
 
-        time.sleep(5)
+    #     time.sleep(5)
         
-        command = [
-            "ffmpeg",
-            "-y",
-            "-loglevel",
-            "debug",
-            "-f",
-            "dshow",
-            "-i",
-            f"video={device_video}",
-            "-s",
-            "1280x720",
-            "-r",
-            "30",
-            "-threads",
-            "2",
-            "-vcodec",
-            "libx264",
-            output_file
-        ]
+    #     command = [
+    #         "ffmpeg",
+    #         "-y",
+    #         "-loglevel",
+    #         "debug",
+    #         "-f",
+    #         "dshow",
+    #         "-i",
+    #         f"video={device_video}",
+    #         "-s",
+    #         "1280x720",
+    #         "-r",
+    #         "30",
+    #         "-threads",
+    #         "2",
+    #         "-vcodec",
+    #         "libx264",
+    #         output_file
+    #     ]
 
-        # Executar o comando
-        try:
-            process = subprocess.check_output(command, stderr=subprocess.STDOUT, universal_newlines=True)
-            for line in process.stdout:
-                print(line.strip())
+    #     # Executar o comando
+    #     try:
+    #         process = subprocess.check_output(command, stderr=subprocess.STDOUT, universal_newlines=True)
+    #         for line in process.stdout:
+    #             print(line.strip())
             
-        except subprocess.CalledProcessError as e:
-            print('ERRO')
-            print(f"Erro ao executar o FFmpeg: {e.output}")
+    #     except subprocess.CalledProcessError as e:
+    #         return jsonify({"erro":f"Erro ao executar o FFmpeg: {e.output}"})
 
-    return 'Online'
+    return 'Encerrou'
 
 @app.route('/stream/encerrar')
 def streamEncerrar():
@@ -104,11 +105,10 @@ def streamEncerrar():
     
     try:
         subprocess.run(["taskkill", "/f", "/t", "/im", process_name], check=True)
-        print(f"Processo {process_name} encerrado com sucesso.")
+        return jsonify({"status": "200", "msg": f"Processo {process_name} encerrado com sucesso."})
     except subprocess.CalledProcessError:
-        print(f"Não foi possível encerrar o processo {process_name}.")
-    
-    return 'encerrado'
+        return jsonify({'status': "500", "msg": f"Não foi possível encerrar o processo {process_name}."})
+
 
 @app.route('/dispositivos')
 def dispositivos():
@@ -215,3 +215,8 @@ def sendmensagem():
         return jsonify({"error": f"Ocorreu um erro de rede ao fazer a solicitação: {str(e)}"})
     except Exception as e:
          return jsonify({"error": f"Ocorreu um erro desconhecido: {str(e)}"})
+
+
+@app.route('/path')
+def path():
+    return jsonify(data)
