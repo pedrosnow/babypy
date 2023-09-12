@@ -1,12 +1,18 @@
 from flask import jsonify, send_file, request
+from app import app, checkedFoldarData as folder_data, task_manager
+from app.model.dispositivo import Dispositivo
+from app.model.conexao import Conexao
+from app.model.ffmpef import Ffmpeg as FfmpegModel
+from app.ffmpeg import Ffmpeg
+from app.model.paciente import Paciente
 import requests
-from app import app, checkedFoldarData as data
 import subprocess
 import re
-import time
 import random
 import string
 import json
+import os
+
 
 @app.route('/')
 def index():
@@ -19,99 +25,38 @@ def stream():
 
     device_video = 'USB Video'
     device_audio = 'Microfone (Realtek High Definition Audio)'  # Nome do dispositivo de áudio
-    output_file = f'{data["chave"]}.mkv'  # Nome do arquivo de saída
+    output_file = f'{folder_data}\\{data["chave"]}.mkv'  # Nome do arquivo de saída
     rtmp_url = f'rtmp://172.16.2.2:1935/live/{data["chave"]}'  # URL RTMP
+    
+    instance_ffmpeg = Ffmpeg()
+    instance_ffmpeg.setdevicevideo(device_video)
+    instance_ffmpeg.setdeviceaudio(device_audio)
+    instance_ffmpeg.setoutputfile(output_file)
+    instance_ffmpeg.setrtmpurl(rtmp_url)
 
-    # Comando FFmpeg
-    command = [
-        "ffmpeg",
-        "-y",
-        "-loglevel",
-        "debug",
-        "-f",
-        "dshow",
-        "-i",
-        f"video={device_video}:audio={device_audio}",
-        "-s",
-        "1280x720",
-        "-r",
-        "30",
-        "-threads",
-        "2",
-        "-vcodec",
-        "libx264",
-        "-f",
-        "flv",
-        rtmp_url,  # URL RTMP
-        "-c:a",
-        "aac",  # Codec de áudio AAC
-        "-strict",
-        "2",
-        "-ar",
-        "44100",  # Taxa de amostragem de áudio
-        "-b:a",
-        "128k",  # Taxa de bits de áudio
-        output_file  # Nome do arquivo de saída
-    ]
+    instance_modelPaciente = Paciente()
+    instance_modelPaciente.setCaminho(task_manager)
+    instance_modelPaciente.insert(data['pacienteid'])
 
-    # Executar o comando e capturar a saída de depuração
-    # try:
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-    for line in process.stdout:
-        print(line.strip())
-        if "Error opening output file" in line:
-            raise subprocess.CalledProcessError(1, command)
-    process.wait()
-        
-    # except subprocess.CalledProcessError as e:
+    return jsonify(instance_ffmpeg.start())
 
-    #     time.sleep(5)
-        
-    #     command = [
-    #         "ffmpeg",
-    #         "-y",
-    #         "-loglevel",
-    #         "debug",
-    #         "-f",
-    #         "dshow",
-    #         "-i",
-    #         f"video={device_video}",
-    #         "-s",
-    #         "1280x720",
-    #         "-r",
-    #         "30",
-    #         "-threads",
-    #         "2",
-    #         "-vcodec",
-    #         "libx264",
-    #         output_file
-    #     ]
-
-    #     # Executar o comando
-    #     try:
-    #         process = subprocess.check_output(command, stderr=subprocess.STDOUT, universal_newlines=True)
-    #         for line in process.stdout:
-    #             print(line.strip())
-            
-    #     except subprocess.CalledProcessError as e:
-    #         return jsonify({"erro":f"Erro ao executar o FFmpeg: {e.output}"})
-
-    return 'Encerrou'
 
 @app.route('/stream/encerrar')
 def streamEncerrar():
     
     process_name = 'ffmpeg.exe'
+    instance_ffmpeg = Ffmpeg()
+    instance_ffmpeg.setprocessname(process_name)
+
+    return jsonify(instance_ffmpeg.encerrar())
     
-    try:
-        subprocess.run(["taskkill", "/f", "/t", "/im", process_name], check=True)
-        return jsonify({"status": "200", "msg": f"Processo {process_name} encerrado com sucesso."})
-    except subprocess.CalledProcessError:
-        return jsonify({'status': "500", "msg": f"Não foi possível encerrar o processo {process_name}."})
 
-
-@app.route('/dispositivos')
+@app.route('/dispositivos', methods=['POST'])
 def dispositivos():
+
+    instance_modelDispositivo = Dispositivo()
+    instance_modelDispositivo.setCaminho(task_manager)
+   
 
     array = []
    # Comando FFmpeg para listar dispositivos
@@ -141,32 +86,51 @@ def dispositivos():
         for nome in nomes_dispositivos:
             # array.append(nome)
             if nome.split('@')[0] != "":
-                array.append(nome.split('@')[0])
+                
+                nameDispositivo = nome.split('@')[0]
+
+                if not instance_modelDispositivo.select(nameDispositivo):
+
+                    array.append({'name': nome.split('@')[0], 'selected': False})
+
+                else:
+
+                     array.append({'name': nome.split('@')[0], 'selected': 'selected'})
 
         # Você agora tem os nomes dos dispositivos em 'nomes_dispositivos'
 
     else:
-        array.append("Nenhum dispositivo DirectShow encontrado.")
+        array.append(0)
 
 
-    return f'{array}'
+    return jsonify(array)
 
-@app.route('/download-video')
+@app.route('/download-video', methods=['POST'])
 def sendVideo():
 
-    video_path = 'C:/Users/udi/Documents/meu bebe/BabyPy/output.mp4'
+    data = request.json
+    
+    file = data['chave']
+
+    video_path = f'{folder_data}\\{file}.mp4'
     return send_file(video_path, as_attachment=True)
 
-@app.route('/converte')
+@app.route('/converte', methods=['POST'])
 def converte():
 
-    input_file = "input.mp4"
-    output_file = "output.avi"
+    data = request.json
+
+    input_file = f"{folder_data}\\{data['name_file']}.mkv"
+    output_file = f"{folder_data}\\{data['name_file']}.mp4"
 
     command = ["ffmpeg", "-i", input_file, output_file]
 
     try:
         subprocess.run(command, check=True)
+
+        if os.path.exists(input_file):
+            os.remove(input_file)
+
         print("Conversão concluída com sucesso.")
     except subprocess.CalledProcessError as e:
         print("Erro durante a conversão:", e)
@@ -216,7 +180,109 @@ def sendmensagem():
     except Exception as e:
          return jsonify({"error": f"Ocorreu um erro desconhecido: {str(e)}"})
 
-
 @app.route('/path')
 def path():
     return jsonify(data)
+
+@app.route('/updateDispositivo', methods=['POST'])
+def config(): 
+
+    data = request.json
+
+    dispositivo = data['dispositivo']
+
+    instance_modelDispositivo = Dispositivo()
+    instance_modelDispositivo.setCaminho(task_manager)
+
+    if data['tipo'] == "video":
+        return jsonify(instance_modelDispositivo.updateVideo(dispositivo))
+    else:
+        return jsonify(instance_modelDispositivo.updateAudio(dispositivo))
+
+@app.route('/ffmpeg',  methods=['POST'])
+def ffmpeg():
+
+    instance_modelFfmpeg = FfmpegModel()
+    instance_modelFfmpeg.setCaminho(task_manager)
+
+    return jsonify(instance_modelFfmpeg.select())
+
+@app.route('/ffmpeg/edit',  methods=['POST'])
+def ffmpegEdit():
+
+    data = request.json
+
+    instance_modelFfmpeg = FfmpegModel()
+    instance_modelFfmpeg.setCaminho(task_manager)
+
+    if data['tipo'] == "fps":
+        return jsonify(instance_modelFfmpeg.updateFps(data['valor']))
+    elif data['tipo'] == "codec":
+        return jsonify(instance_modelFfmpeg.updateCodec(data['valor']))
+    elif data['tipo'] == "texabitsaudio":
+        return jsonify(instance_modelFfmpeg.updatexabitsaudio(data['valor']))
+    elif data['tipo'] == "taxmostraudio":
+        return jsonify(instance_modelFfmpeg.taxmostraudio(data['valor']))
+    elif data['tipo'] == "altura":
+        return jsonify(instance_modelFfmpeg.resolucaoaltura(data['valor']))
+    elif data['tipo'] == "largura":
+        return jsonify(instance_modelFfmpeg.resolucaolargura(data['valor']))
+
+
+@app.route('/conexao',  methods=['POST'])
+def conexao():
+
+    instance_modelConexao = Conexao()
+    instance_modelConexao.setCaminho(task_manager)
+
+    return jsonify(instance_modelConexao.select())
+
+
+@app.route('/conexao/edit',  methods=['POST'])
+def conexaoedit():
+
+    instance_modelConexao = Conexao()
+    instance_modelConexao.setCaminho(task_manager)
+   
+    data = request.json
+
+    if data['tipo'] == "rmtp":
+        return jsonify(instance_modelConexao.updateRmtp(data['valor']))
+    else:
+        return jsonify(instance_modelConexao.updateservidorPrincipal(data['valor']))
+
+
+@app.route('/getNuuvem',  methods=['POST'])
+def nuuvem():
+
+    instance_modelConexao = Conexao()
+    instance_modelConexao.setCaminho(task_manager)
+
+    return jsonify(instance_modelConexao.select())
+
+
+@app.route('/uploadFile',  methods=['POST'])
+def uploadFile():
+
+    data = request.json
+
+    url = "http://172.16.2.2:3000/getvideo/babe/stream"
+
+    payload = json.dumps({
+        "chave": data['chave']
+    })
+    headers = {
+    'Content-Type': 'application/json'
+    }
+
+    response = requests.request("POST", url, headers=headers, data=payload)
+
+    print(response.text)
+
+    return 'teste'
+
+    
+
+
+    
+

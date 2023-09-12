@@ -28,17 +28,5 @@ if not os.path.exists(task_manager):
     instance_taskmanager = taskmanager()
     instance_taskmanager.setCaminho(task_manager)
 
-try:
-     configuracao = open(f'{checkedFoldarRoot}\config.json')
-except FileNotFoundError as e:
-    configuracao = f'{checkedFoldarRoot}\config.json'
-    
-    with open(configuracao, "w") as outfile:
-        json.dump({}, outfile)
-
-load_config = open(f'{checkedFoldarRoot}\\config.json')
-load_config = json.load(load_config)
-
-
 
 from app import routes
