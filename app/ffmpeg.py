@@ -52,18 +52,18 @@ class Ffmpeg():
             "dshow",
             "-i",
             f"video={self.getdevicevideo()}:audio={self.getdeviceaudio()}",
-            "-s",
+             "-s",
             "1280x720",
             "-r",
             "30",
             "-threads",
-            "3",
+            "2",
             "-vcodec",
             "libx264",
             "-f",
             "flv",
             self.getrtmpurl(),  # URL RTMP
-            "-c:a",
+           "-c:a",
             "aac",  # Codec de áudio AAC
             "-strict",
             "2",
@@ -75,15 +75,24 @@ class Ffmpeg():
         ]
 
         # Executar o comando e capturar a saída de depuração
-        # try:
-        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        for line in process.stdout:
-            print(line.strip())
-            if "Error opening output file" in line:
-                raise subprocess.CalledProcessError(1, command)
-        process.wait()
+        try:
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            for line in process.stdout:
+                print(line.strip())
+                if "Error opening output file" in line:
+                    raise subprocess.CalledProcessError(1, command)
+                elif "Error opening input files: I/O error" in line:
+                    raise subprocess.CalledProcessError(1, command)
+            process.wait()
 
-        return 'Live encerrado'
+            return 'Live encerrado'
+        
+        except subprocess.CalledProcessError as e:
+            # Handle the error here
+            print(f"Error: {e}")
+            return 'Erro ao iniciar a transmissão ao vivo'
+
+       
     
 
     def encerrar(self):

@@ -3,8 +3,8 @@ from app import app, checkedFoldarData as folder_data, task_manager
 from app.model.dispositivo import Dispositivo
 from app.model.conexao import Conexao
 from app.model.ffmpef import Ffmpeg as FfmpegModel
+from app.model.registro import Registro
 from app.ffmpeg import Ffmpeg
-from app.model.paciente import Paciente
 import requests
 import subprocess
 import re
@@ -12,7 +12,16 @@ import random
 import string
 import json
 import os
+import datetime
 
+
+@app.route('/processo/verificar',  methods=['POST'])
+def verificarProcesso():
+
+    instance_model = Registro()
+    instance_model.setCaminho(task_manager)
+
+    return jsonify(instance_model.select())
 
 @app.route('/')
 def index():
@@ -24,21 +33,37 @@ def stream():
     data = request.json
 
     device_video = 'USB Video'
-    device_audio = 'Microfone (Realtek High Definition Audio)'  # Nome do dispositivo de áudio
+    device_audio = 'Microfone (Realtek(R) Audio)'  # Nome do dispositivo de áudio
     output_file = f'{folder_data}\\{data["chave"]}.mkv'  # Nome do arquivo de saída
     rtmp_url = f'rtmp://172.16.2.2:1935/live/{data["chave"]}'  # URL RTMP
-    
+
+    pacienteid = data['pacienteid']
+    chave = data["chave"]
+    file = f'{data["chave"]}.mp4'
+    enviado = 0
+    date = datetime.datetime.now()
+
     instance_ffmpeg = Ffmpeg()
     instance_ffmpeg.setdevicevideo(device_video)
     instance_ffmpeg.setdeviceaudio(device_audio)
     instance_ffmpeg.setoutputfile(output_file)
     instance_ffmpeg.setrtmpurl(rtmp_url)
 
-    instance_modelPaciente = Paciente()
-    instance_modelPaciente.setCaminho(task_manager)
-    instance_modelPaciente.insert(data['pacienteid'])
+    instance_model = Registro()
+    instance_model.setCaminho(task_manager)
+    instance_model.insert(pacienteid,chave,file,enviado,date)
+    responseStart = instance_ffmpeg.start()
 
-    return jsonify(instance_ffmpeg.start())
+    if responseStart == "Erro ao iniciar a transmissão ao vivo":
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        
+        erro = "Erro: Erro ao iniciar a transmissão ao vivo"
+        instance_modelRegistro = Registro()
+        instance_modelRegistro.setCaminho(task_manager)
+        instance_modelRegistro.updateErro(chave, erro)
+
+    return jsonify(responseStart)
 
 
 @app.route('/stream/encerrar')
@@ -50,13 +75,11 @@ def streamEncerrar():
 
     return jsonify(instance_ffmpeg.encerrar())
     
-
 @app.route('/dispositivos', methods=['POST'])
 def dispositivos():
 
     instance_modelDispositivo = Dispositivo()
     instance_modelDispositivo.setCaminho(task_manager)
-   
 
     array = []
    # Comando FFmpeg para listar dispositivos
@@ -115,28 +138,48 @@ def sendVideo():
     video_path = f'{folder_data}\\{file}.mp4'
     return send_file(video_path, as_attachment=True)
 
+
 @app.route('/converte', methods=['POST'])
 def converte():
 
     data = request.json
+    
+    chave = data['name_file']
 
-    input_file = f"{folder_data}\\{data['name_file']}.mkv"
-    output_file = f"{folder_data}\\{data['name_file']}.mp4"
 
-    command = ["ffmpeg", "-i", input_file, output_file]
+    instance_modelRegistro = Registro()
+    instance_modelRegistro.setCaminho(task_manager)
 
-    try:
-        subprocess.run(command, check=True)
+    input_file = os.path.join(folder_data, f"{data['name_file']}.mkv")
+    output_file = os.path.join(folder_data, f"{data['name_file']}.mp4")
 
-        if os.path.exists(input_file):
+    if os.path.isfile(input_file):
+        input_file_size = os.path.getsize(input_file)
+        if input_file_size == 0:
             os.remove(input_file)
 
-        print("Conversão concluída com sucesso.")
-    except subprocess.CalledProcessError as e:
-        print("Erro durante a conversão:", e)
+            erro = "Erro: o arquivo de entrada está vazio."
+            instance_modelRegistro.updateErro(chave, erro)
 
+            return jsonify('Erro: o arquivo de entrada está vazio.')
+        command = ["ffmpeg", "-i", input_file, output_file]
+        try:
+            subprocess.run(command, check=True)
+            if os.path.exists(output_file):
+                if os.path.exists(input_file):
+                    os.remove(input_file)
+                print("Conversão concluída com sucesso.")
+                return jsonify('Sucesso')
+            else:
+                print("Erro: o arquivo de saída não foi criado.")
+                return jsonify('Erro: o arquivo de saída não foi criado.')
+        except subprocess.CalledProcessError as e:
+            print("Erro durante a conversão:", e)
+            return jsonify('Erro na conversão.')
+    else:
+        print("Erro: o arquivo de entrada não foi encontrado.")
+        return jsonify('Arquivo de entrada não encontrado.')
     
-    return 'sucesso'
 
 @app.route('/gerarchave', methods=['POST'])
 def gerarchave():
@@ -182,7 +225,7 @@ def sendmensagem():
 
 @app.route('/path')
 def path():
-    return jsonify(data)
+    return jsonify(folder_data)
 
 @app.route('/updateDispositivo', methods=['POST'])
 def config(): 
@@ -266,23 +309,98 @@ def uploadFile():
 
     data = request.json
 
+    chave = data['chave']
+
     url = "http://172.16.2.2:3000/getvideo/babe/stream"
 
     payload = json.dumps({
-        "chave": data['chave']
+        "chave": chave
     })
     headers = {
-    'Content-Type': 'application/json'
+        'Content-Type': 'application/json'
     }
+
 
     response = requests.request("POST", url, headers=headers, data=payload)
 
-    print(response.text)
+    if response.text == "sucesso":
 
-    return 'teste'
+        instance_model = Registro()
+        instance_model.setCaminho(task_manager)
+
+        instance_model.update(chave)
+        
+        video_path = f'{folder_data}\\{chave}.mp4'
+
+        if os.path.exists(video_path):
+            os.remove(video_path)
+
+
+    return jsonify(response.text)
 
     
 
 
     
+@app.route('/tste')
+def teste():
 
+    instance_modelRegistro = Registro()
+    instance_modelRegistro.setCaminho(task_manager)
+    
+    for row in instance_modelRegistro.selectTeste():
+        
+        chave = row['chave']
+
+        input_file = os.path.join(folder_data, f"{chave}.mkv")
+        output_file = os.path.join(folder_data, f"{chave}.mp4")
+
+        if os.path.isfile(input_file):
+            input_file_size = os.path.getsize(input_file)
+            if input_file_size == 0:
+                os.remove(input_file)
+
+                erro = "Erro: o arquivo de entrada está vazio."
+                instance_modelRegistro.updateErro(chave, erro)
+
+            command = ["ffmpeg", "-i", input_file, output_file]
+            try:
+                subprocess.run(command, check=True)
+                if os.path.exists(output_file):
+                    if os.path.exists(input_file):
+                        os.remove(input_file)
+                    
+                        url = "http://172.16.2.2:3000/getvideo/babe/stream"
+
+                        payload = json.dumps({
+                            "chave": chave
+                        })
+                        headers = {
+                            'Content-Type': 'application/json'
+                        }
+
+                        response = requests.request("POST", url, headers=headers, data=payload)
+
+                        if response.text == "sucesso":
+
+                            instance_modelRegistro.update(chave)
+                            
+                            video_path = f'{folder_data}\\{chave}.mp4'
+
+                            if os.path.exists(video_path):
+                                os.remove(video_path)                          
+                else:
+
+                    print("Erro: o arquivo de saída não foi criado.")
+                   
+            except subprocess.CalledProcessError as e:
+                print("Erro durante a conversão:", e)
+                
+        else:
+            print("Erro: o arquivo de entrada não foi encontrado.")
+           
+        
+
+    
+
+    return jsonify('ss')
