@@ -90,7 +90,7 @@ class Ffmpeg():
         except subprocess.CalledProcessError as e:
             # Handle the error here
             print(f"Error: {e}")
-            return 'Erro ao iniciar a transmissão ao vivo'
+            return f'Erro ao iniciar a live'
 
        
     
@@ -103,3 +103,43 @@ class Ffmpeg():
         except subprocess.CalledProcessError:
             return {'status': "500", "msg": f"Não foi possível encerrar o processo {self.getprocessname()}."}
     
+
+    def gravar(self):
+
+        command = [
+            "ffmpeg",
+            "-y",
+            "-loglevel",
+            "debug",
+            "-f",
+            "dshow",
+            "-i",
+            f"video={self.getdevicevideo()}:audio={self.getdeviceaudio()}",
+            "-s",
+            "1280x720",
+            "-r",
+            "30",
+            "-threads",
+            "3",
+            "-vcodec",
+            "libx264",
+            self.getoutputfile()  # Nome do arquivo de saída
+        ]
+
+        # Executar o comando
+        try:
+            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            for line in process.stdout:
+                print(line.strip())
+                if "Error opening output file" in line:
+                    raise subprocess.CalledProcessError(1, command)
+                elif "Error opening input files: I/O error" in line:
+                    raise subprocess.CalledProcessError(1, command)
+            
+            process.wait()
+            
+            return 'gravação encerrado'
+            
+        except subprocess.CalledProcessError as e:
+
+            return 'Erro ao gravar'

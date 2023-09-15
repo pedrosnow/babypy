@@ -54,11 +54,11 @@ def stream():
     instance_model.insert(pacienteid,chave,file,enviado,date)
     responseStart = instance_ffmpeg.start()
 
-    if responseStart == "Erro ao iniciar a transmissão ao vivo":
+    if responseStart == "Erro ao iniciar a live":
         if os.path.exists(output_file):
             os.remove(output_file)
         
-        erro = "Erro: Erro ao iniciar a transmissão ao vivo"
+        erro = "Erro: Erro ao iniciar a live"
         instance_modelRegistro = Registro()
         instance_modelRegistro.setCaminho(task_manager)
         instance_modelRegistro.updateErro(chave, erro)
@@ -339,11 +339,8 @@ def uploadFile():
     return jsonify(response.text)
 
     
-
-
-    
-@app.route('/tste')
-def teste():
+@app.route('/processo_pos_video')
+def processoPosVideo():
 
     instance_modelRegistro = Registro()
     instance_modelRegistro.setCaminho(task_manager)
@@ -390,7 +387,6 @@ def teste():
                             if os.path.exists(video_path):
                                 os.remove(video_path)                          
                 else:
-
                     print("Erro: o arquivo de saída não foi criado.")
                    
             except subprocess.CalledProcessError as e:
@@ -403,4 +399,45 @@ def teste():
 
     
 
-    return jsonify('ss')
+    return jsonify('encerrado')
+
+
+@app.route('/gravando', methods=['POST'])
+def gravando():
+
+    data = request.json
+
+    device_video = 'USB Video'
+    device_audio = 'Microfone (Realtek(R) Audio)'  # Nome do dispositivo de áudio
+    output_file = f'{folder_data}\\{data["chave"]}.mkv'  # Nome do arquivo de saída
+
+    pacienteid = data['pacienteid']
+    chave = data["chave"]
+    file = f'{data["chave"]}.mp4'
+    enviado = 0
+    date = datetime.datetime.now()
+
+    instance_ffmpeg = Ffmpeg()
+    instance_ffmpeg.setdevicevideo(device_video)
+    instance_ffmpeg.setdeviceaudio(device_audio)
+    instance_ffmpeg.setoutputfile(output_file)
+
+    instance_model = Registro()
+    instance_model.setCaminho(task_manager)
+    instance_model.insert(pacienteid,chave,file,enviado,date)
+
+    responseStart =instance_ffmpeg.gravar()
+ 
+
+    if responseStart == "Erro ao gravar":
+        if os.path.exists(output_file):
+            os.remove(output_file)
+        
+        erro = "Erro: Erro ao gravar"
+        instance_modelRegistro = Registro()
+        instance_modelRegistro.setCaminho(task_manager)
+        instance_modelRegistro.updateErro(chave, erro)
+
+        return jsonify({'status': 500,'msg': "Erro ao iniciar o processo"})
+
+    return jsonify({'status': 200,'msg': "processo encerrado"})
