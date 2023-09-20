@@ -10,7 +10,25 @@ class Dispositivo():
     def getCaminho(self):
         return self._caminho
 
-    def select(self, name):
+    def select(self):
+        
+        array = []
+        with sqlite3.connect(self.getCaminho()) as connection:
+            cursor = connection.cursor()
+            cursor.execute(f"SELECT * FROM tb_dispositivo")
+            all = cursor.fetchall()
+            for row in all:
+                array.append({
+                    'video': row[1],
+                    'audio': row[2]
+                })
+        
+        return array
+                
+
+            
+    
+    def checked(self, name):
         
         with sqlite3.connect(self.getCaminho()) as connection:
             cursor = connection.cursor()

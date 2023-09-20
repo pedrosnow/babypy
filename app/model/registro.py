@@ -15,6 +15,12 @@ class Registro():
             cursor = connection.cursor()
             cursor.execute(f"UPDATE tb_registro SET enviado = 1 WHERE chave = '{chave}'")
             return 'sucesso'
+    
+    def updatePID(self, chave, pid):
+         with sqlite3.connect(self.getCaminho()) as connection:
+            cursor = connection.cursor()
+            cursor.execute(f"UPDATE tb_registro SET pid = '{pid}' WHERE chave = '{chave}'")
+            return 'sucesso'
    
     def updateErro(self, chave, erro):
          with sqlite3.connect(self.getCaminho()) as connection:
@@ -62,3 +68,12 @@ class Registro():
                 })
             
             return array
+
+
+    def SelectPID(self, chave):
+        with sqlite3.connect(self.getCaminho()) as connection:
+            cursor = connection.cursor()
+            cursor.execute(f"SELECT r.pid FROM tb_registro as r WHERE r.chave = '{chave}'")
+            result = cursor.fetchall()
+
+            return result[0][0]     

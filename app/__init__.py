@@ -2,7 +2,8 @@ from app.model.taskmanager import taskmanager
 from flask import Flask
 import sqlite3
 import os
-import json
+import logging
+
 
 app = Flask(__name__)
 
@@ -27,6 +28,9 @@ if not os.path.exists(task_manager):
 
     instance_taskmanager = taskmanager()
     instance_taskmanager.setCaminho(task_manager)
+
+
+logging.basicConfig(filename=f"{checkedFoldarRoot}\\log.txt", level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 from app import routes

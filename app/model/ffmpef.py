@@ -23,7 +23,7 @@ class Ffmpeg():
                     'largura': row[1],
                     'altura': row[2],
                     'taxa_mostragem_audio': row[3],
-                    'tava_bits_audio': row[4],
+                    'taxa_bits_audio': row[4],
                     'codec_audio': row[5],
                     'fpd': row[6],
                 })
