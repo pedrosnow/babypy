@@ -22,7 +22,8 @@ class Conexao():
                     'rmtp': row[1],
                     'home': row[2],
                     'token': row[3],
-                    'stream': row[4]
+                    'stream': row[4],
+                    'workstation': row[5]
                 })
             return array
         

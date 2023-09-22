@@ -148,10 +148,10 @@ def sendVideo():
     data = request.json
     
     file = data['chave']
- 
-    video_path = f'{folder_data}\\{file}.mp4'
-    return send_file(video_path, as_attachment=True)
 
+    video_path = f'{folder_data}\\{file}.mkv'
+    
+    return send_file(video_path, as_attachment=True)
 
 @app.route('/gerarchave', methods=['POST'])
 def gerarchave():
@@ -249,7 +249,6 @@ def ffmpegEdit():
     elif data['tipo'] == "largura":
         return jsonify(instance_modelFfmpeg.resolucaolargura(data['valor']))
 
-
 @app.route('/conexao',  methods=['POST'])
 def conexao():
 
@@ -257,7 +256,6 @@ def conexao():
     instance_modelConexao.setCaminho(task_manager)
 
     return jsonify(instance_modelConexao.select())
-
 
 @app.route('/conexao/edit',  methods=['POST'])
 def conexaoedit():
