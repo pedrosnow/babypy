@@ -13,9 +13,11 @@ import random
 import string
 import json
 import os
+import signal
 import datetime
 
 
+instance_ffmpeg = Ffmpeg()
 
 @app.route('/processo/verificar',  methods=['POST'])
 def verificarProcesso():
@@ -45,7 +47,7 @@ def stream():
 
     device_video = configuracao[0]['video']
     device_audio = configuracao[1]['audio']  # Nome do dispositivo de áudio
-    output_file = f'{folder_data}\\{data["chave"]}.mkv'  # Nome do arquivo de saída
+    output_file = f'{folder_data}\\{data["chave"]}.mp4'  # Nome do arquivo de saída
     rtmp_url = f'{configuracaoConexao[0]["rmtp"]}/live/{data["chave"]}'  # URL RTMP
 
     pacienteid = data['pacienteid']
@@ -54,7 +56,7 @@ def stream():
     enviado = 0
     date = datetime.datetime.now()
 
-    instance_ffmpeg = Ffmpeg()
+   
     instance_ffmpeg.setdevicevideo(device_video)
     instance_ffmpeg.setdeviceaudio(device_audio)
     instance_ffmpeg.setoutputfile(output_file)
@@ -80,14 +82,11 @@ def stream():
 @app.route('/stream/encerrar', methods=['POST'])
 def streamEncerrar():
 
-    data = request.json
-    
-    process_name = 'ffmpeg.exe'
-    instance_ffmpeg = Ffmpeg()
-    instance_ffmpeg.setprocessname(process_name)
-    instance_ffmpeg.setChave(data['chave'])
+    process = instance_ffmpeg.getprocess()
+    # Envie um sinal Ctrl+C para o processo
+    process.send_signal(signal.CTRL_C_EVENT) 
 
-    return jsonify(instance_ffmpeg.encerrar())
+    return jsonify({'status': 200, 'msg': 'sucesso'})   
     
 @app.route('/dispositivos', methods=['POST'])
 def dispositivos():
@@ -291,7 +290,7 @@ def gravando():
 
     device_video = configuracao[0]['video']
     device_audio = configuracao[1]['audio']  # Nome do dispositivo de áudio
-    output_file = f'{folder_data}\\{data["chave"]}.mkv'  # Nome do arquivo de saída
+    output_file = f'{folder_data}\\{data["chave"]}.mp4'  # Nome do arquivo de saída
 
     pacienteid = data['pacienteid']
     chave = data["chave"]
@@ -322,50 +321,18 @@ def gravando():
         return jsonify({'status': 500,'msg': "Erro ao iniciar o processo"})
 
     return jsonify({'status': 200,'msg': "processo encerrado"})
+ 
 
-
-@app.route('/converte', methods=['POST'])
-def converte():
-
-    data = request.json
-
-    instance_modelRegistro = Registro()
-    instance_modelRegistro.setCaminho(task_manager)
-
-    input_file = f"{folder_data}\\{data['chave']}.mkv"
-    output_file = f"{folder_data}\\{data['chave']}.mp4"
-
-    if os.path.isfile(input_file):
-        input_file_size = os.path.getsize(input_file)
-        if input_file_size == 0:
-            os.remove(input_file)
-            erro = "Erro: o arquivo de entrada está vazio."
-            instance_modelRegistro.updateErro(data['chave'], erro)
-            return jsonify({'status':785, 'msg': "o arquivo de entrada está vazio"})
-        
-        command = ["ffmpeg", "-i", input_file, output_file]
-    
-    try:
-        subprocess.run(command, check=True)
-
-        if os.path.exists(input_file):
-             os.remove(input_file)
-
-
-        uploadFile(data['chave'], data['acesso'])
-        # return jsonify({'status':200, 'msg': "Conversão concluída com sucesso."})
-    
-    except subprocess.CalledProcessError as e:
-
-        erro = "Erro durante a conversão:" + e
-        instance_modelRegistro.updateErro(data['chave'], erro)
-
-        return jsonify({'status':500, 'msg': "Erro durante a conversão"})
-    
-
-def uploadFile(chave, acesso):
+@app.route('/upload/file', methods=['POST'])
+def uploadFile():
 
     try:
+
+        data = request.json
+
+        chave = data['chave']
+
+        acesso = data['acesso']
 
         instance_conexao = Conexao()
         instance_conexao.setCaminho(task_manager)
@@ -391,6 +358,7 @@ def uploadFile(chave, acesso):
         response = requests.request("POST", url, headers=headers, data=payload)
 
         if response.text == "sucesso":
+            
             instance_modelRegistro.update(chave)
 
             video_path = f'{folder_data}\\{chave}.mp4'

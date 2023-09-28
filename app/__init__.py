@@ -23,11 +23,13 @@ if not os.path.exists(checkedFoldarData):
 
 task_manager = os.path.join(checkedFoldarRoot, "task_manager.db")
 
-if not os.path.exists(task_manager):
-    conexao = sqlite3.connect(task_manager)
-
-    instance_taskmanager = taskmanager()
-    instance_taskmanager.setCaminho(task_manager)
+conexao = sqlite3.connect(task_manager)
+instance_taskmanager = taskmanager()
+instance_taskmanager.setCaminho(task_manager)
+instance_taskmanager.createTableConexao()
+instance_taskmanager.createTabledispositivo()
+instance_taskmanager.createTableFfmpeg()
+instance_taskmanager.InsertdadosPadrao()
 
 
 logging.basicConfig(filename=f"{checkedFoldarRoot}\\log.txt", level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

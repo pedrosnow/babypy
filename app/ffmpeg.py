@@ -10,9 +10,10 @@ class Ffmpeg():
         self._deviceaudio = None
         self._outputfile = None
         self._rtmpurl = None
-        self._processname = None
         self._pidstream = None
         self._chave = None
+        self.process = None
+        self._pid = None
 
     def setdevicevideo(self, name):
         self._devicevideo = name
@@ -38,24 +39,23 @@ class Ffmpeg():
     def getrtmpurl(self):
         return self._rtmpurl
     
-    def setprocessname(self, name):
-        self._processname = name
+    def setprocess(self, name):
+        self.process = name
 
-    def getprocessname(self):
-        return self._processname
-    
-    def setpidStream(self, name):
-        self._pidstream = name
-    
-    def getpidStream(self):
-        return self._pidstream
+    def getprocess(self):
+        return self.process
     
     def setChave(self, name):
         self._chave = name
 
     def getChave(self):
         return self._chave
+    
+    def setpid(self, name):
+        self._pid = name
 
+    def getpid(self):
+        return self._pid
     
 
     def start(self):
@@ -67,48 +67,39 @@ class Ffmpeg():
         instance_registro = Registro()
         instance_registro.setCaminho(task_manager)
 
-        chaveNone = self.getoutputfile()
-        chaveNone.split('.')
-        chave = chaveNone[0]
-        
-        # Comando FFmpeg
+        # Executar o comando e capturar a saída de depuração
+
         command = [
             "ffmpeg",
-            "-y",
-            "-loglevel",
-            "debug",
+            "-stream_loop",
+            "-1",
             "-f",
             "dshow",
-            "-i",
-            f"video={self.getdevicevideo()}:audio={self.getdeviceaudio()}",
-             "-s",
+            "-s",
             f"{configuracao[0]['largura']}x{configuracao[0]['altura']}",
             "-r",
             f"{configuracao[0]['fpd']}",
+            "-i",
+            f"video={self.getdevicevideo()}:audio={self.getdeviceaudio()}",
+            "-c:v",
+            "libx264",
+            "-preset",
+            "ultrafast",
+            "-pix_fmt",
+            "yuv420p",
             "-threads",
             "3",
-            "-vcodec",
-            "libx264",
             "-f",
             "flv",
-            self.getrtmpurl(),  # URL RTMP
-           "-c:a",
-            f"{configuracao[0]['codec_audio']}",  # Codec de áudio AAC
-            "-strict",
-            "2",
-            "-ar",
-            f"{configuracao[0]['taxa_mostragem_audio']}",  # Taxa de amostragem de áudio
-            "-b:a",
-            f"{configuracao[0]['taxa_bits_audio']}",  # Taxa de bits de áudio
-            self.getoutputfile()  # Nome do arquivo de saída
+            self.getrtmpurl(),
+            self.getoutputfile()
         ]
 
-        # Executar o comando e capturar a saída de depuração
         try:
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
 
-            ffmpeg_pid = process.pid
-            instance_registro.updatePID(self.getChave(), ffmpeg_pid)
+            self.setprocess(process)
+            self.setpid(process.pid)
 
             for line in process.stdout:
                 # print(line.strip())
@@ -128,18 +119,32 @@ class Ffmpeg():
        
     
 
-    def encerrar(self):
+    # def encerrar(self):
 
-        instance_registro = Registro()
-        instance_registro.setCaminho(task_manager)
+        # return self.process.stdin
 
-        pid =instance_registro.SelectPID(self.getChave())
+        # if self.process:
+        #     try:
+        #         self.process.stdin.write("q\n")
+        #         self.process.stdin.flush()
+        #         self.process.terminate()  # Encerre o processo
+        #         self.process.wait()  # Aguarde até que o processo seja encerrado
+        #         return 'Processo encerrado com sucesso'
+        #     except Exception as e:
+        #         return f'Erro ao encerrar o processo: {str(e)}'
+        # else:
+        #     return 'Nenhum processo em execução'
 
-        try:
-            subprocess.run(["taskkill", "/f", "/pid", str(pid)], check=True)
-            return {"status": "200", "msg": f"Processo {self.getprocessname()} encerrado com sucesso."}
-        except subprocess.CalledProcessError:
-            return {'status': "500", "msg": f"Não foi possível encerrar o processo {self.getprocessname()}."}
+        # instance_registro = Registro()
+        # instance_registro.setCaminho(task_manager)
+
+        # pid =instance_registro.SelectPID(self.getChave())
+
+        # try:
+        #     subprocess.run(["taskkill", "/f", "/pid", str(pid)], check=True)
+        #     return {"status": "200", "msg": f"Processo {self.getprocessname()} encerrado com sucesso."}
+        # except subprocess.CalledProcessError:
+        #     return {'status': "500", "msg": f"Não foi possível encerrar o processo {self.getprocessname()}."}
     
 
     def gravar(self):
@@ -171,8 +176,8 @@ class Ffmpeg():
         # Executar o comando
         try:
             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+            
             for line in process.stdout:
-                print(line.strip())
                 if "Error opening output file" in line:
                     raise subprocess.CalledProcessError(1, command)
                 elif "Error opening input files: I/O error" in line:

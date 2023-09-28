@@ -23,7 +23,6 @@ class Conexao():
                     'home': row[2],
                     'token': row[3],
                     'stream': row[4],
-                    'workstation': row[5]
                 })
             return array
         
