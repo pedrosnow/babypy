@@ -16,7 +16,6 @@ import os
 import signal
 import datetime
 
-
 instance_ffmpeg = Ffmpeg()
 
 @app.route('/processo/verificar',  methods=['POST'])
@@ -26,11 +25,6 @@ def verificarProcesso():
     instance_model.setCaminho(task_manager)
 
     return jsonify(instance_model.select())
-
-@app.route('/')
-def index():
-   
-    return 'Página inicial'
 
 @app.route('/record_and_stream', methods=['POST'])
 def stream():
@@ -141,17 +135,6 @@ def dispositivos():
 
     return jsonify(array)
 
-@app.route('/download-video', methods=['POST'])
-def sendVideo():
-    
-    data = request.json
-    
-    file = data['chave']
-
-    video_path = f'{folder_data}\\{file}.mkv'
-    
-    return send_file(video_path, as_attachment=True)
-
 @app.route('/gerarchave', methods=['POST'])
 def gerarchave():
 
@@ -247,6 +230,7 @@ def ffmpegEdit():
         return jsonify(instance_modelFfmpeg.resolucaoaltura(data['valor']))
     elif data['tipo'] == "largura":
         return jsonify(instance_modelFfmpeg.resolucaolargura(data['valor']))
+    
 
 @app.route('/conexao',  methods=['POST'])
 def conexao():
@@ -322,58 +306,4 @@ def gravando():
 
     return jsonify({'status': 200,'msg': "processo encerrado"})
  
-
-@app.route('/upload/file', methods=['POST'])
-def uploadFile():
-
-    try:
-
-        data = request.json
-
-        chave = data['chave']
-
-        acesso = data['acesso']
-
-        instance_conexao = Conexao()
-        instance_conexao.setCaminho(task_manager)
-        serverBebe = instance_conexao.select()
-
-        instance_modelRegistro = Registro()
-        instance_modelRegistro.setCaminho(task_manager)
-    
-        data = request.json
-
-        url = f"{serverBebe[0]['home']}/getvideo/babe/stream"
-
-        payload = json.dumps({
-            "chave": chave,
-            "serverStream": serverBebe[0]['stream'],
-            'acesso': acesso
-        })
-
-        headers = {
-            'Content-Type': 'application/json'
-        }
-
-        response = requests.request("POST", url, headers=headers, data=payload)
-
-        if response.text == "sucesso":
-            
-            instance_modelRegistro.update(chave)
-
-            video_path = f'{folder_data}\\{chave}.mp4'
-            nameFile = f'{chave}.mp4'
-
-            instance_file = File()
-            instance_file.insertApi(nameFile, acesso)
-
-            if os.path.exists(video_path):
-                os.remove(video_path)     
-
-        return jsonify({"status": 200, "msg": "Sucesso", "result": response.text})
-    
-    except Exception as e:
-        
-        return jsonify({'status': 500, 'msg': "Erro", "result": e})
-
 
